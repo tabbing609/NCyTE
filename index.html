@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BottleOps — Premium Bottles, Straws & Accessories</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/chatbot.css">
+</head>
+<body>
+  <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark/light mode">
+    <span class="icon-sun" aria-hidden="true">☀️</span>
+    <span class="icon-moon" aria-hidden="true">🌙</span>
+  </button>
+
+  <nav class="navbar">
+    <a href="#" class="logo">BottleOps</a>
+    <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+      <span></span><span></span><span></span>
+    </button>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="#about">About Us</a></li>
+      <li><a href="#services">Services</a></li>
+      <li><a href="#goods">Products</a></li>
+      <li><a href="#customer-service">Customer Service</a></li>
+      <li><a href="#" class="cart-link" id="cartNavBtn">🛒 Cart <span class="cart-badge" id="cartBadge">0</span></a></li>
+    </ul>
+  </nav>
+
+  <header class="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-particles">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+    <div class="hero-content">
+      <h1>Sip Smarter. Live Cleaner.</h1>
+      <p class="subheading">Premium reusable bottles, metal straws, and custom decals — built to last and designed to stand out.</p>
+      <a href="#goods" class="btn">Shop Now</a>
+    </div>
+  </header>
+
+  <section id="services">
+    <h2 class="section-title scroll-in">Our Services</h2>
+    <div class="card-grid">
+      <article class="service-card product-card scroll-in delay-1" data-product-id="4" data-product-name="Water Bottle Refurbishment" data-price="14.99">
+        <div class="icon">🔧</div>
+        <h3>Bottle Refurbishment</h3>
+        <p>Deep clean and restore your water bottle to like-new condition. We remove stains, odors, and buildup so your bottle looks and feels fresh.</p>
+        <p class="price" style="margin-top: 0.5rem; font-weight: 600; color: var(--accent);">$14.99</p>
+        <button class="btn btn-add" type="button">Add to Cart</button>
+      </article>
+      <article class="service-card product-card scroll-in delay-2" data-product-id="5" data-product-name="Metal Straw Cleaning Service" data-price="5.99">
+        <div class="icon">✨</div>
+        <h3>Straw Cleaning Service</h3>
+        <p>Professional deep cleaning for your metal straws. We sanitize and polish them so they're safe, spotless, and ready to reuse.</p>
+        <p class="price" style="margin-top: 0.5rem; font-weight: 600; color: var(--accent);">$5.99</p>
+        <button class="btn btn-add" type="button">Add to Cart</button>
+      </article>
+      <article class="service-card product-card scroll-in delay-3" data-product-id="6" data-product-name="Decal Application" data-price="9.99">
+        <div class="icon">🎨</div>
+        <h3>Decal Application</h3>
+        <p>Let our team professionally apply custom vinyl decals to your bottles and gear. Clean lines, no bubbles, perfect every time.</p>
+        <p class="price" style="margin-top: 0.5rem; font-weight: 600; color: var(--accent);">$9.99</p>
+        <button class="btn btn-add" type="button">Add to Cart</button>
+      </article>
+    </div>
+  </section>
+
+  <section id="goods">
+    <h2 class="section-title scroll-in">Products</h2>
+    <div class="card-grid">
+      <article class="product-card scroll-in delay-1" data-product-id="1" data-product-name="Water Bottle 16oz" data-price="24.99">
+        <div class="img-placeholder"></div>
+        <h3>Water Bottle 16oz</h3>
+        <p class="price">$24.99</p>
+        <p class="desc">Stainless steel insulated water bottle. Keeps drinks cold for 24 hours or hot for 12. Durable, leak-proof, and ready for anything.</p>
+        <button class="btn btn-add" type="button">Add to Cart</button>
+      </article>
+      <article class="product-card scroll-in delay-2" data-product-id="2" data-product-name="Metal Straws" data-price="12.99">
+        <div class="img-placeholder"></div>
+        <h3>Metal Straws</h3>
+        <p class="price">$12.99</p>
+        <p class="desc">Reusable stainless steel straws. Eco-friendly, easy to clean, and built to replace hundreds of single-use plastic straws.</p>
+        <button class="btn btn-add" type="button">Add to Cart</button>
+      </article>
+      <article class="product-card scroll-in delay-3" data-product-id="3" data-product-name="Decals" data-price="7.99">
+        <div class="img-placeholder"></div>
+        <h3>Custom Decals</h3>
+        <p class="price">$7.99</p>
+        <p class="desc">Custom vinyl decals to personalize your bottle, laptop, or gear. Weather-resistant and made to last.</p>
+        <button class="btn btn-add" type="button">Add to Cart</button>
+      </article>
+    </div>
+  </section>
+
+  <div class="cart-overlay" id="cartOverlay" aria-hidden="true"></div>
+  <aside class="cart-drawer" id="cartDrawer" aria-label="Shopping cart">
+    <div class="cart-drawer-header">
+      <h2>Cart</h2>
+      <button class="cart-close" id="cartClose" aria-label="Close cart">×</button>
+    </div>
+    <div class="cart-items" id="cartItems">
+      <div class="cart-empty" id="cartEmpty">Your cart is empty.</div>
+    </div>
+    <div class="cart-footer">
+      <div class="cart-subtotal">Subtotal: <span id="cartSubtotal">$0.00</span></div>
+      <div class="cart-actions">
+        <button class="btn" id="checkoutBtn" type="button">Checkout</button>
+        <button class="btn-clear" id="clearCartBtn" type="button">Clear Cart</button>
+      </div>
+    </div>
+  </aside>
+
+  <section id="about">
+    <div class="about-inner">
+      <div class="about-text scroll-in">
+        <h2>About BottleOps</h2>
+        <p>We started BottleOps with a simple idea: everyday essentials should be better — better for you, better for the planet, and better looking. Our stainless steel bottles and reusable straws are built to replace the disposable stuff that ends up in landfills.</p>
+        <p>Beyond products, we offer hands-on services like bottle refurbishment, straw cleaning, and professional decal application. We believe in keeping what you have in top shape rather than throwing it away.</p>
+        <p>Whether you're upgrading your daily carry or looking for a unique gift, BottleOps has you covered.</p>
+        <div class="stats">
+          <div class="stat-box"><div class="number">6</div><div class="label">Products & Services</div></div>
+          <div class="stat-box"><div class="number">500+</div><div class="label">Happy Customers</div></div>
+          <div class="stat-box"><div class="number">100%</div><div class="label">Reusable</div></div>
+        </div>
+      </div>
+      <div class="about-deco scroll-in delay-1"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-title scroll-in">What Our Customers Say</h2>
+    <div class="testimonials-wrap">
+      <article class="testimonial-card scroll-in delay-1">
+        <div class="testimonial-avatar">JM</div>
+        <div class="testimonial-stars">★★★★★</div>
+        <div class="testimonial-name">Jessica M.</div>
+        <p class="testimonial-quote">"Love my 16oz bottle — it keeps my water ice cold all day at work. Super sturdy too. Already bought two more as gifts!"</p>
+      </article>
+      <article class="testimonial-card scroll-in delay-2">
+        <div class="testimonial-avatar">DT</div>
+        <div class="testimonial-stars">★★★★★</div>
+        <div class="testimonial-name">David T.</div>
+        <p class="testimonial-quote">"The metal straws are a game changer. Easy to clean and way better than paper straws that fall apart. Great quality for the price."</p>
+      </article>
+      <article class="testimonial-card scroll-in delay-3">
+        <div class="testimonial-avatar">SR</div>
+        <div class="testimonial-stars">★★★★★</div>
+        <div class="testimonial-name">Sarah R.</div>
+        <p class="testimonial-quote">"Got a custom decal put on my bottle and it looks amazing. The application service was quick and the finish is perfect. Highly recommend!"</p>
+      </article>
+    </div>
+  </section>
+
+  <section id="customer-service">
+    <h2 class="section-title scroll-in">Customer Service</h2>
+    <div class="section-inner">
+      <form class="contact-form scroll-in" id="contactForm">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" placeholder="Your name" required>
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" placeholder="your@email.com" required>
+        <label for="message">Message</label>
+        <textarea id="message" name="message" placeholder="How can we help?" required></textarea>
+        <button type="submit" class="btn">Submit</button>
+      </form>
+      <div class="support-options">
+        <div class="support-card scroll-in delay-1">
+          <div class="support-icon">💬</div>
+          <div><strong>Live Chat</strong><br><span class="text-muted">Available Mon–Fri, 9am–5pm</span></div>
+        </div>
+        <div class="support-card scroll-in delay-2">
+          <div class="support-icon">✉️</div>
+          <div><strong>Email Support</strong><br><span class="text-muted">support@bottleops.com</span></div>
+        </div>
+        <div class="support-card scroll-in delay-3">
+          <div class="support-icon">📞</div>
+          <div><strong>Phone</strong><br><span class="text-muted">(555) 123-4567</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="footer-inner">
+      <div>
+        <div class="footer-logo">BottleOps</div>
+        <p style="color: var(--text-secondary); margin: 0;">Premium reusable goods & services</p>
+      </div>
+      <div class="footer-links">
+        <a href="#about">About</a>
+        <a href="#services">Services</a>
+        <a href="#goods">Products</a>
+        <a href="#customer-service">Contact</a>
+      </div>
+      <div class="footer-social">
+        <a href="#" aria-label="Facebook">⎔</a>
+        <a href="#" aria-label="Instagram">⌂</a>
+        <a href="#" aria-label="Email">✉</a>
+      </div>
+    </div>
+    <div class="footer-bottom">© 2026 BottleOps. All rights reserved.</div>
+  </footer>
+
+  <script src="js/cart.js?v=2"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/scroll.js"></script>
+  <script src="js/menu.js"></script>
+  <script src="js/chatbot.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

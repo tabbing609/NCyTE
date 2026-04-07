@@ -1,0 +1,112 @@
+Build a complete, single-file HTML/CSS/JS frontend website (no backend required) for a placeholder luxury/premium company called "Lumière Co." All product and service names, descriptions, and images should be clearly marked as placeholder content so they can be swapped out later.
+
+GENERAL REQUIREMENTS
+
+Single self-contained HTML file with all CSS and JS written inline (no external files)
+Fully responsive (mobile, tablet, desktop)
+All placeholder text should use clearly labeled dummy content like [Service Name], [Product Description], etc. so it's easy to find and replace later
+Use Google Fonts (import via link tag) — suggest a clean serif/sans-serif pairing appropriate for a luxury brand (e.g. Playfair Display + Inter)
+
+
+DARK/LIGHT MODE TOGGLE
+
+A toggle button fixed in the top left corner of the page
+It should switch between a dark mode (deep charcoals, blacks, rich accent color like gold or champagne) and light mode (crisp whites, soft neutrals, same gold/champagne accent)
+The toggle should use a smooth CSS transition across the entire page when switching
+Use a sun/moon icon or similar intuitive icon to indicate the current mode
+Default to dark mode on load
+
+
+NAVIGATION BAR
+
+Sticky/fixed top navbar with the company logo/name on the left
+Nav links: About Us, Services, Goods, Customer Service, 🛒 Cart
+The Cart icon should display a live item count badge that updates as items are added
+Hover effects on nav links: smooth underline animation or subtle color shift
+On mobile, collapse into a hamburger menu
+
+
+HERO SECTION
+
+Full-width animated hero section
+Use a CSS gradient or animated background (e.g. subtle floating particles, gradient shift, or animated geometric shapes) — no external image dependencies
+Large luxury headline (e.g. [Your Premium Headline Here]) with a subheading
+A prominent CTA button with a hover glow or shimmer effect
+Smooth fade-in animation on page load
+
+
+SERVICES SECTION (id: services)
+
+Display 3 placeholder services in a responsive card grid
+Each card: icon (use a simple SVG or Unicode symbol), [Service Name], [Short Description], and a Learn More button
+Card hover effect: lift/shadow effect + subtle border glow in the accent color
+Cards should animate into view on scroll (use IntersectionObserver)
+
+
+GOODS / PRODUCTS SECTION (id: goods)
+
+Display 3 placeholder goods in a responsive card grid
+Each card: placeholder image area (styled div with gradient fill), [Product Name], [Price], [Short Description], and an Add to Cart button
+Add to Cart button: on click, increment the cart count in the navbar badge and give a brief visual confirmation (e.g. button flashes or shows "Added!")
+Card hover effect: image area zooms slightly, card lifts, accent color border appears
+
+
+SHOPPING CART
+
+A slide-in cart drawer/panel that opens from the right side when the cart icon in the navbar is clicked
+Lists all added items with name, quantity, and price (placeholder prices like $[XX.XX])
+Includes a subtotal, a Checkout button (placeholder — no backend), and a Clear Cart option
+Cart state should persist while the user is on the page (JS in-memory, no localStorage needed)
+Smooth slide-in/slide-out animation
+
+
+ABOUT US SECTION (id: about)
+
+A visually rich section with a two-column layout (text left, decorative element or styled div right)
+Placeholder headline and 2–3 paragraphs of lorem ipsum branded to the luxury aesthetic
+A subtle parallax or fade-in scroll effect
+Include 2–3 placeholder stat/highlight boxes (e.g. [X] Years of Excellence, [X] Happy Clients)
+
+
+TESTIMONIALS SECTION
+
+3 placeholder testimonial cards in a horizontal scroll or grid layout
+Each: avatar placeholder (styled circle with initials), [Customer Name], star rating (5 stars), and [Testimonial quote]
+Hover effect: card lifts, subtle glow
+
+
+CUSTOMER SERVICE SECTION (id: customer-service)
+
+A clean section with a placeholder contact form (Name, Email, Message fields + Submit button)
+Form fields should have smooth focus animations (border highlight in accent color)
+Include 2–3 placeholder support options (e.g. Live Chat, Email Support, Phone) displayed as icon + label cards
+Submit button has a hover shimmer/glow effect
+
+
+FOOTER
+
+Full-width footer with company name/logo, navigation links, placeholder social media icons (use Unicode or simple SVG), and a copyright line
+Subtle top border in the accent color
+Hover effects on all footer links
+
+
+HOVER EFFECTS SUMMARY (apply these consistently throughout)
+
+Buttons: shimmer sweep or glow pulse on hover
+Cards: lift (translateY) + box-shadow expansion + accent border
+Nav links: animated underline that slides in from left
+Images/media areas: subtle scale zoom
+All hover transitions should be smooth (200–350ms ease)
+
+
+SCROLL ANIMATIONS
+
+Use IntersectionObserver to trigger fade-in + slide-up animations as sections enter the viewport
+Stagger the animation of cards within a section for a polished cascading effect
+
+
+CODE QUALITY NOTES
+
+Use CSS custom properties (variables) for all colors, fonts, and spacing so dark/light mode is easy to implement and the palette is easy to update later
+Add comments throughout the HTML/CSS/JS marking clearly where placeholder content lives
+Keep the JS clean and organized — separate logical blocks for: cart functionality, dark/light toggle, scroll animations, mobile menu

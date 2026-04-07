@@ -1,0 +1,126 @@
+/**
+ * Base styles — reset, typography, shared utilities.
+ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  transition: background-color var(--transition), color var(--transition);
+  overflow-x: hidden;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color var(--transition);
+}
+
+a:hover {
+  color: var(--accent-hover);
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+}
+
+/* Buttons */
+.btn {
+  display: inline-block;
+  padding: var(--space-md) var(--space-2xl);
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--bg-primary);
+  background: var(--accent);
+  border-radius: var(--radius-sm);
+  transition: transform var(--transition), box-shadow var(--transition), color var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px var(--accent-glow);
+}
+
+.btn:hover::before {
+  left: 100%;
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--accent);
+  border: 2px solid var(--accent);
+}
+
+.btn-outline:hover {
+  background: var(--accent);
+  color: var(--bg-primary);
+}
+
+/* Section common */
+section {
+  padding: var(--space-4xl) var(--space-xl);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.section-title {
+  font-family: var(--font-heading);
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 700;
+  text-align: center;
+  margin: 0 0 var(--space-2xl);
+  color: var(--text-primary);
+}
+
+/* Scroll-in animation (JS adds .visible) */
+.scroll-in {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.scroll-in.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.scroll-in.delay-1 { transition-delay: 0.1s; }
+.scroll-in.delay-2 { transition-delay: 0.2s; }
+.scroll-in.delay-3 { transition-delay: 0.3s; }
+
+.text-muted {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}

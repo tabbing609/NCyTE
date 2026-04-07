@@ -1,0 +1,349 @@
+================================================================================
+  VCCC WEBSITE — SETUP, LOCAL LAUNCH, AND BACKEND INTEGRATION GUIDE
+================================================================================
+
+This document explains how to run the project locally (frontend + backend),
+what to install, how the REST API works, and how to connect a real database
+and mail server to the backend.
+
+--------------------------------------------------------------------------------
+1. PREREQUISITES (LANGUAGES, TOOLS, PACKAGES)
+--------------------------------------------------------------------------------
+
+LANGUAGES & RUNTIME
+  • Node.js (v18 or higher recommended)
+    - Download: https://nodejs.org/
+    - Verify:  node --version   and   npm --version
+
+  • No Python or other languages are required for running this project.
+    (The repo may contain a Python-style .gitignore from initial setup; the
+     app is Node.js + static HTML/CSS/JS.)
+
+FRONTEND (static site)
+  • No build step: the frontend is plain HTML, CSS, and JavaScript.
+  • You only need a way to serve the files or open index.html:
+    - Option A: Use a local server that serves the project root (e.g. Live
+      Server in VS Code/Cursor on port 5500, or any static file server).
+    - Option B: Open index.html directly in a browser (some features that
+      call the API may be limited by CORS if the backend is on a different
+      origin).
+
+BACKEND (Node.js / Express)
+  • All backend dependencies are listed in backend/package.json.
+  • Install with:  cd backend  then  npm install
+  • Key packages: express, dotenv, helmet, cors, express-rate-limit,
+    express-validator, xss-clean, csrf-sync, express-session, cookie-parser,
+    jsonwebtoken, bcrypt, nodemailer, winston, uuid (see package.json).
+
+OPTIONAL FOR LOCAL HTTPS
+  • OpenSSL (for generating self-signed TLS certificates).
+    - Often included on Linux/macOS. On Windows, may be available via Git
+      for Windows or a separate install.
+
+--------------------------------------------------------------------------------
+2. LAUNCHING THE WEBSITE LOCALLY (FRONTEND + BACKEND)
+--------------------------------------------------------------------------------
+
+STEP 1 — Backend environment
+  1. Go to the backend folder:
+       cd backend
+
+  2. Copy the example env file (if you do not already have a .env):
+       copy .env.example .env     (Windows)
+       cp .env.example .env       (macOS/Linux)
+
+  3. Edit .env and set at least these (required for the app to start):
+       PORT=3000
+       NODE_ENV=development
+       FRONTEND_ORIGIN=http://localhost:5500
+
+       JWT_SECRET=<at least 64 random characters>
+       JWT_REFRESH_SECRET=<at least 64 random characters>
+       CSRF_SECRET=<a random secret string>
+       SESSION_SECRET=<a random secret string>
+
+     You can leave DB_* and SMTP_* empty for local run without database or
+     email. The app will start; register/login and orders will fail until
+     the database is connected (see Section 4).
+
+  4. Install dependencies (if not done yet):
+       npm install
+
+  5. Start the backend:
+       npm run dev
+     (or  npm start  for production mode)
+     The API will listen on http://localhost:3000 (or HTTPS if you configured
+     TLS certs in .env).
+
+STEP 2 — Frontend
+  1. Serve the project root (parent of backend) so that index.html is
+     available at a URL. For example:
+     - VS Code / Cursor: install "Live Server" and "Open with Live Server"
+       on the project root; it often uses port 5500.
+     - Or from the project root:
+         npx serve -l 5500
+       (install serve if needed:  npm install -g serve)
+     - Or any other static server that serves the folder containing
+       index.html, css/, js/.
+
+  2. Open in the browser the URL shown (e.g. http://localhost:5500/index.html
+     or http://127.0.0.1:5500).
+
+STEP 3 — CORS
+  The backend allows requests only from FRONTEND_ORIGIN. If your frontend
+  runs on a different port, set that in .env, e.g.:
+    FRONTEND_ORIGIN=http://localhost:8080
+  Then restart the backend.
+
+SUMMARY — Quick local run
+  • Terminal 1:  cd backend  →  npm install  →  copy .env.example .env  →
+    fill JWT_SECRET, JWT_REFRESH_SECRET, CSRF_SECRET, SESSION_SECRET  →
+    npm run dev
+  • Terminal 2 (or Live Server): serve frontend at port 5500 (or your chosen
+    port) and set FRONTEND_ORIGIN in .env to match.
+  • Browser: open the frontend URL (e.g. http://localhost:5500).
+
+--------------------------------------------------------------------------------
+3. REST API OVERVIEW AND HOW EVERYTHING IS CONNECTED
+--------------------------------------------------------------------------------
+
+The backend is a REST API. The frontend (or any client) talks to it over HTTP/HTTPS
+using JSON. Security is handled by: JWT (access + refresh in HTTP-only cookie),
+CSRF tokens for state-changing requests, rate limiting, validation, and
+sanitization.
+
+HIGH-LEVEL FLOW
+  • Client (browser) sends HTTP requests to the backend (e.g. GET /api/products).
+  • Middleware runs in order: CORS, rate limit, body parser, cookie parser,
+    session, sanitization, then routes.
+  • Routes call controllers; controllers use services; services use models
+    (and config/db, config/mail). Responses are JSON.
+
+AUTH FLOW
+  • Register:  POST /api/auth/register  (email, password, name) → user created,
+    no token yet (user must login).
+  • Login:     POST /api/auth/login  (email, password) → access token in JSON,
+    refresh token in HTTP-only cookie. Guest cart (from session) is merged into
+    the user’s cart on login (see cartService.mergeGuestCart).
+  • Protected routes: client sends  Authorization: Bearer <accessToken>.
+  • Refresh:   POST /api/auth/refresh  (no body; cookie sent automatically) →
+    new access token in JSON.
+  • Logout:    POST /api/auth/logout  (with auth) → clears refresh cookie.
+
+CSRF
+  • For any state-changing request (POST/PUT/PATCH/DELETE), the client must
+    first get a token:  GET /api/csrf-token  →  { "csrfToken": "..." }.
+  • Send it in the header:  X-CSRF-Token: <csrfToken>.
+
+ENDPOINTS SUMMARY
+
+  Auth (prefix /api/auth)
+  -----------------------
+  POST   /register         No auth   Body: email, password, name
+  POST   /login            No auth   Body: email, password  → accessToken + refresh cookie
+  POST   /logout           Auth     Clears refresh cookie
+  POST   /refresh          No auth  Cookie: refreshToken  → new accessToken
+  POST   /forgot-password   No auth   Body: email
+  POST   /reset-password   No auth   Body: token, password
+
+  Products (prefix /api/products)
+  -------------------------------
+  GET    /                 No auth   Returns all products (goods + services)
+  GET    /:id               No auth   Returns one product by id
+
+  Cart (prefix /api/cart)
+  -----------------------
+  GET    /                 Optional auth   Returns current cart (session or user DB)
+  POST   /items            Optional auth   Body: productId, quantity?  (CSRF required)
+  DELETE /items/:productId  Optional auth   (CSRF required)
+  DELETE /                  Optional auth   Clear cart (CSRF required)
+
+  Orders (prefix /api/orders)
+  ---------------------------
+  POST   /                 Auth     Body: { items: [ { productId, quantity } ] }  (CSRF required)
+  GET    /                 Auth     Current user’s order history
+  GET    /:id               Auth     One order (only if it belongs to req.user)
+
+  Utility
+  -------
+  GET    /api/csrf-token    No auth   Returns { csrfToken } for use in X-CSRF-Token header
+
+HOW IT’S WIRED
+  • Routes (backend/routes/*) define URL and method, attach validation and
+    middleware (auth, CSRF), and call controllers.
+  • Controllers (backend/controllers/*) parse request, call services, send
+    response. They pass errors to next(err).
+  • Services (backend/services/*) contain business logic; they call models
+    and (for mail) config/mail.
+  • Models (backend/models/*) are the data layer: they call config/db.query()
+    (or, for products, use in-memory seed data until you replace it).
+  • config/db.js  →  connect() and query() (stubbed until you add a real DB).
+  • config/mail.js →  Nodemailer transporter (used by services/mailService
+    when SMTP is configured).
+
+--------------------------------------------------------------------------------
+4. CONNECTING A REAL DATABASE
+--------------------------------------------------------------------------------
+
+The backend uses a single data access layer in  config/db.js. All model files
+(backend/models/userModel.js, orderModel.js, and cart logic in
+backend/services/cartService.js) use  db.query(sql, params)  with parameterized
+queries. You must never concatenate user input into SQL; always use
+placeholders ($1, $2 for PostgreSQL or ? for MySQL).
+
+STEP 1 — Install a driver and implement config/db.js
+  • For PostgreSQL:  npm install pg
+  • For MySQL:        npm install mysql2
+
+  In  backend/config/db.js:
+  1. Require your driver (e.g.  const { Pool } = require('pg'); ).
+  2. In  connect(): read DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD from
+     env (via  require('./env') ); create a pool and set  connected = true.
+  3. In  query(sql, params): call  pool.query(sql, params)  and return
+     something like  { rows, rowCount }  so that callers can use  rows.
+
+  Example (PostgreSQL) skeleton:
+    const { Pool } = require('pg');
+    const env = require('./env');
+    let pool;
+    let connected = false;
+    async function connect() {
+      const host = env.get('DB_HOST');
+      if (!host || host.trim() === '') { ... return; }
+      pool = new Pool({
+        host,
+        port: parseInt(env.get('DB_PORT') || '5432', 10),
+        database: env.get('DB_NAME'),
+        user: env.get('DB_USER'),
+        password: env.get('DB_PASSWORD'),
+      });
+      connected = true;
+    }
+    async function query(sql, params = []) {
+      if (!connected) throw new Error('DB not connected');
+      const result = await pool.query(sql, params);
+      return { rows: result.rows, rowCount: result.rowCount };
+    }
+
+  Add DB_* variables to .env (see .env.example).
+
+STEP 2 — Create tables
+  You need at least:
+  • users: id (UUID), email (unique), password_hash, name, created_at; optional:
+    password_reset_token, password_reset_expires for password reset.
+  • orders: id (UUID), user_id, total, status, created_at; and an order_items
+    table or JSON column for items (productId, name, price, quantity).
+  • cart (optional): if you want persistent cart for logged-in users, add a
+    table keyed by user_id (e.g. user_id, items JSON or cart_items table).
+
+  Use your DB’s migration tool or run SQL by hand. Match the shapes expected
+  by the models (see backend/models/userModel.js, orderModel.js).
+
+STEP 3 — Replace stubs in models
+  • userModel.js: Implement  findByEmail, createUser, findById,
+    findByPasswordResetToken, updatePassword, setPasswordResetToken using
+    db.query() with parameterized queries. Map DB columns (e.g. password_hash)
+    to the shape the service expects (e.g. passwordHash).
+  • orderModel.js: Implement  createOrder, findByUserId, findById. Store order
+    and order items; return rows in the shape the controllers expect.
+  • cartService.js: Implement  getCartForUser(userId)  and
+    saveCartForUser(userId, items)  (e.g. read/write a cart row or table by
+    user_id). Keep using parameterized queries.
+
+STEP 4 — Call connect() on startup
+  In  backend/server.js  (or  app.js), before starting the HTTP server, call
+  await require('./config/db').connect();  so the app connects to the DB on
+  boot. Handle connection errors (log and exit or retry as appropriate).
+
+STEP 5 — Products (optional)
+  backend/models/productModel.js  currently returns in-memory seed data. To
+  use the DB, add a  products  table and replace  getAll()  and  getById(id)
+  with  db.query()  and parameterized SQL.
+
+SECURITY REMINDERS
+  • Never build SQL with string concatenation of user input.
+  • Always use  db.query(sql, [param1, param2, ...])  with placeholders.
+  • Keep the comments in the model files: "SECURITY: Always use
+    parameterized queries."
+
+--------------------------------------------------------------------------------
+5. CONNECTING A MAIL SERVER (SMTP)
+--------------------------------------------------------------------------------
+
+The app uses Nodemailer. Configuration is in  backend/config/mail.js; it
+already reads SMTP_* from .env and creates a transporter when SMTP_HOST is set.
+
+STEP 1 — Set environment variables in .env
+  SMTP_HOST=smtp.example.com
+  SMTP_PORT=587
+  SMTP_SECURE=false
+  SMTP_USER=your-smtp-user
+  SMTP_PASS=your-smtp-password
+  MAIL_FROM=noreply@yourdomain.com
+  ADMIN_EMAIL=admin@yourdomain.com
+
+STEP 2 — Use the transporter in mailService.js
+  In  backend/services/mailService.js, replace the stub logic with real sends:
+
+  • sendPasswordReset(toEmail, resetToken):
+    - Get the transporter:  const { getTransporter, isMailConfigured } = require('../config/mail');
+    - If  !isMailConfigured()  return (or log and return).
+    - Call  getTransporter().sendMail({ from: process.env.MAIL_FROM, to: toEmail,
+      subject: 'Password reset', text: `Reset link: ...?token=${resetToken}` })
+      (or use a template). Do not log the full reset token in production.
+
+  • sendAdminNotification(subject, body):
+    - If  !isMailConfigured()  return.
+    - Call  getTransporter().sendMail({ from: process.env.MAIL_FROM,
+      to: process.env.ADMIN_EMAIL, subject, text: body }).
+
+  Handle errors (log and/or return a failed promise) so the API can respond
+  appropriately.
+
+--------------------------------------------------------------------------------
+6. GITIGNORE AND SAFETY
+--------------------------------------------------------------------------------
+
+The repository uses .gitignore to avoid committing secrets and generated files.
+Do not commit:
+  • .env and any file containing secrets (.env.local, .env.*.local).
+  • node_modules/
+  • TLS certificates and keys (certs/, *.pem, *.key).
+  • Log files (logs/, *.log).
+  • Build/output and coverage (dist/, coverage/) if added later.
+
+Backend .gitignore (backend/.gitignore) is already set up for this. The root
+.gitignore has been updated to include Node/backend-related and security
+entries. Always copy .env.example to .env locally and never commit .env.
+
+--------------------------------------------------------------------------------
+7. TROUBLESHOOTING
+--------------------------------------------------------------------------------
+
+  • "Missing required environment variables"
+    → Copy .env.example to .env and set every variable listed in the "required"
+      list in backend/config/env.js (PORT, NODE_ENV, FRONTEND_ORIGIN,
+      JWT_SECRET, JWT_REFRESH_SECRET, CSRF_SECRET, SESSION_SECRET). JWT_SECRET
+      must be at least 64 characters.
+
+  • CORS errors in the browser
+    → Ensure FRONTEND_ORIGIN in .env exactly matches the origin of the page
+      (scheme + host + port), e.g. http://localhost:5500. Restart the backend.
+
+  • "DB not connected" or 500 on register/login/orders
+    → Database is not wired yet. Complete Section 4 (database connection and
+      model implementations).
+
+  • CSRF / 403 on POST requests
+    → For state-changing requests, call  GET /api/csrf-token  first and send
+      the returned value in the  X-CSRF-Token  header.
+
+  • Refresh token not sent
+    → Ensure the frontend uses  credentials: 'include'  (or equivalent) when
+      calling the API so that cookies (e.g. refresh token) are sent. The
+      backend must allow the frontend origin in CORS with credentials: true
+      (already configured).
+
+================================================================================
+  END OF SETUP AND INTEGRATION GUIDE
+================================================================================
