@@ -1,6 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const { Pool } = require('pg');
 const nodemailer = require('nodemailer');
@@ -32,6 +33,7 @@ const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
 const SMTP_USER = process.env.SMTP_USER || '';
 const SMTP_PASS = process.env.SMTP_PASS || '';
 const MAIL_FROM = process.env.MAIL_FROM || 'no-reply@bottleops.xyz';
+const CHATBOT_TIMEOUT_MS = Number(process.env.CHATBOT_TIMEOUT_MS || 12000);
 const mailer = nodemailer.createTransport({
   host: SMTP_HOST,
   port: SMTP_PORT,
@@ -79,7 +81,14 @@ function checkAuth(req) {
   const authHeader = req.headers.authorization;
   if (!authHeader) return false;
   const token = authHeader.replace('Bearer ', '');
-  return token === ADMIN_PASSWORD;
+  try {
+    const a = Buffer.from(token, 'utf8');
+    const b = Buffer.from(ADMIN_PASSWORD, 'utf8');
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+  } catch (e) {
+    return false;
+  }
 }
 
 function getAllowedOrigin(req) {
@@ -102,6 +111,31 @@ function setSecurityHeaders(res) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+  );
+}
+
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+}
+
+function isValidText(value, min, max) {
+  const v = String(value || '').trim();
+  return v.length >= min && v.length <= max;
+}
+
+function isValidOrderItems(items) {
+  if (!Array.isArray(items) || !items.length || items.length > 50) return false;
+  return items.every(item => {
+    const productId = Number(item && item.product_id);
+    const quantity = Number(item && item.quantity);
+    return Number.isInteger(productId) && productId > 0 &&
+      Number.isInteger(quantity) && quantity > 0 && quantity <= 100;
+  });
 }
 
 function isSensitivePath(urlPath) {
@@ -188,8 +222,13 @@ http.createServer(async (req, res) => {
       }
       const body = await parseBody(req);
       const { customer_email, customer_name, items, shipping_address, payment_info } = body;
-      if (!customer_email || !customer_name || !shipping_address || !Array.isArray(items) || !items.length) {
-        throw new Error('Missing required order fields');
+      if (
+        !isValidEmail(customer_email) ||
+        !isValidText(customer_name, 2, 120) ||
+        !isValidText(shipping_address, 5, 500) ||
+        !isValidOrderItems(items)
+      ) {
+        throw new Error('Invalid order fields');
       }
       const client = await pool.connect();
       try {
@@ -266,6 +305,11 @@ http.createServer(async (req, res) => {
   }
 
   if (req.url === '/api/orders' && req.method === 'GET') {
+    if (isRateLimited(req, 'orders_get', 30, 60 * 1000)) {
+      res.writeHead(429, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Too many requests. Please try again shortly.' }));
+      return;
+    }
     if (!checkAuth(req)) {
       res.writeHead(401, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Unauthorized' }));
@@ -309,17 +353,21 @@ http.createServer(async (req, res) => {
       const body = await parseBody(req);
       const message = String(body.message || '').trim();
       const context = String(body.context || '').trim();
-      if (!message) {
+      if (!isValidText(message, 1, 2000) || (context && !isValidText(context, 1, 3000))) {
         throw new Error('Message is required');
       }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), CHATBOT_TIMEOUT_MS);
       const upstreamResponse = await fetch(AI_API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${AI_API_KEY}`
         },
-        body: JSON.stringify({ message, context })
+        body: JSON.stringify({ message, context }),
+        signal: controller.signal
       });
+      clearTimeout(timeout);
       const raw = await upstreamResponse.text();
       let data = {};
       try {
@@ -341,6 +389,12 @@ http.createServer(async (req, res) => {
   }
 
   if (isSensitivePath(req.url)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('Forbidden');
+    return;
+  }
+
+  if (path.basename(String(req.url || '')).startsWith('.')) {
     res.writeHead(403, { 'Content-Type': 'text/plain' });
     res.end('Forbidden');
     return;
