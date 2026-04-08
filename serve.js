@@ -18,10 +18,17 @@ const pool = new Pool({
   user: 'storeapp',
   password: '!zXWhM%9HWNh$z1g'
 });
+const SMTP_HOST = process.env.SMTP_HOST || '192.168.1.105';
+const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
+const SMTP_USER = process.env.SMTP_USER || '';
+const SMTP_PASS = process.env.SMTP_PASS || '';
+const MAIL_FROM = process.env.MAIL_FROM || 'no-reply@bottleops.xyz';
 const mailer = nodemailer.createTransport({
-  host: '192.168.1.105',
-  port: 25,
-  secure: false
+  host: SMTP_HOST,
+  port: SMTP_PORT,
+  secure: false,
+  requireTLS: true,
+  auth: SMTP_USER && SMTP_PASS ? { user: SMTP_USER, pass: SMTP_PASS } : undefined
 });
 
 const MIME = {
@@ -159,9 +166,11 @@ http.createServer(async (req, res) => {
         }
         await client.query('COMMIT');
         const orderSummary = items.map(item => `Product ${item.product_id} x ${item.quantity}`).join('\n');
-        const safePaymentHint = payment_info ? `Payment: ${String(payment_info).slice(0, 4)}****` : 'Payment: captured';
+        const safePaymentHint = payment_info && typeof payment_info === 'object'
+          ? `Payment: card ending in ${payment_info.card_number_last4 || '****'} (exp ${payment_info.card_expiry || 'N/A'})`
+          : 'Payment: captured';
         await mailer.sendMail({
-          from: 'no-reply@bottleops.xyz',
+          from: MAIL_FROM,
           to: customer_email,
           subject: `BottleOps Order Confirmation #${orderId}`,
           text: [
