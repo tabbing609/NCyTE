@@ -16,6 +16,8 @@
   const clearCartBtn = document.getElementById('clearCartBtn');
   const checkoutModal = document.createElement('div');
   checkoutModal.className = 'checkout-modal';
+  checkoutModal.setAttribute('hidden', 'hidden');
+  checkoutModal.style.display = 'none';
   checkoutModal.innerHTML = '<div class="checkout-panel"><h3>Checkout</h3><form id="checkoutForm"><label>Name</label><input name="customer_name" autocomplete="name" required><label>Email</label><input type="email" name="customer_email" autocomplete="email" required><label>Shipping Address</label><textarea name="shipping_address" autocomplete="street-address" required></textarea><label>Name on Card</label><input name="card_name" autocomplete="cc-name" required><label>Card Number</label><input name="card_number" inputmode="numeric" autocomplete="cc-number" placeholder="4242 4242 4242 4242" maxlength="19" required><label>Expiry (MM/YY)</label><input name="card_expiry" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/YY" maxlength="5" required><label>CVV</label><input name="card_cvv" inputmode="numeric" autocomplete="cc-csc" placeholder="123" maxlength="4" required><div class="checkout-actions"><button class="btn" type="submit">Place Order</button><button class="btn-clear" type="button" id="checkoutCancel">Cancel</button></div><p id="checkoutStatus" class="checkout-status"></p></form></div>';
   if (document.body) document.body.appendChild(checkoutModal);
   const checkoutForm = checkoutModal.querySelector('#checkoutForm');
@@ -107,19 +109,34 @@
       if (!checkoutForm || !checkoutStatus) return;
       checkoutForm.reset();
       checkoutStatus.textContent = '';
+      checkoutModal.removeAttribute('hidden');
+      checkoutModal.style.display = '';
       checkoutModal.classList.add('open');
     });
   }
   if (checkoutCancel) {
     checkoutCancel.addEventListener('click', function () {
       checkoutModal.classList.remove('open');
+      checkoutModal.setAttribute('hidden', 'hidden');
+      checkoutModal.style.display = 'none';
     });
   }
   if (checkoutModal) {
     checkoutModal.addEventListener('click', function (e) {
-      if (e.target === checkoutModal) checkoutModal.classList.remove('open');
+      if (e.target === checkoutModal) {
+        checkoutModal.classList.remove('open');
+        checkoutModal.setAttribute('hidden', 'hidden');
+        checkoutModal.style.display = 'none';
+      }
     });
   }
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      checkoutModal.classList.remove('open');
+      checkoutModal.setAttribute('hidden', 'hidden');
+      checkoutModal.style.display = 'none';
+    }
+  });
   if (checkoutForm) {
     var cardNumberInput = checkoutForm.querySelector('input[name="card_number"]');
     var expiryInput = checkoutForm.querySelector('input[name="card_expiry"]');
@@ -201,6 +218,8 @@
           syncStockState();
           setTimeout(function () {
             checkoutModal.classList.remove('open');
+            checkoutModal.setAttribute('hidden', 'hidden');
+            checkoutModal.style.display = 'none';
             alert('Order placed successfully. Order #' + data.order_id);
           }, 900);
         })
