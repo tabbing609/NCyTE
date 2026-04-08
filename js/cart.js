@@ -208,10 +208,27 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
-        .then(function (r) { return r.json(); })
+        .then(function (r) {
+          return r.text().then(function (text) {
+            var data = {};
+            try {
+              data = text ? JSON.parse(text) : {};
+            } catch (e) {
+              data = {};
+            }
+            if (!r.ok) {
+              var serverMessage = data.error || data.message || '';
+              if (!serverMessage) {
+                throw new Error('We could not place your order right now. Please try again in a moment.');
+              }
+              throw new Error(serverMessage);
+            }
+            return data;
+          });
+        })
         .then(function (data) {
           if (!data || !data.success) throw new Error((data && data.error) || 'Order failed');
-          if (checkoutStatus) checkoutStatus.textContent = 'Success! Order #' + data.order_id + ' confirmed.';
+          if (checkoutStatus) checkoutStatus.textContent = 'Thank you for purchasing from BottleOps! Your order #' + data.order_id + ' is confirmed.';
           cart.length = 0;
           updateBadge();
           renderCart();
@@ -220,11 +237,11 @@
             checkoutModal.classList.remove('open');
             checkoutModal.setAttribute('hidden', 'hidden');
             checkoutModal.style.display = 'none';
-            alert('Order placed successfully. Order #' + data.order_id);
+            alert('Thank you for purchasing from BottleOps! Your order #' + data.order_id + ' has been placed.');
           }, 900);
         })
         .catch(function (err) {
-          if (checkoutStatus) checkoutStatus.textContent = err.message || 'Checkout failed.';
+          if (checkoutStatus) checkoutStatus.textContent = err.message || 'We could not place your order right now. Please try again shortly.';
         });
     });
   }

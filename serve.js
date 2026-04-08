@@ -273,21 +273,26 @@ http.createServer(async (req, res) => {
         const safePaymentHint = payment_info && typeof payment_info === 'object'
           ? `Payment: card ending in ${payment_info.card_number_last4 || '****'} (exp ${payment_info.card_expiry || 'N/A'})`
           : 'Payment: captured';
-        await mailer.sendMail({
-          from: MAIL_FROM,
-          to: customer_email,
-          subject: `BottleOps Order Confirmation #${orderId}`,
-          text: [
-            `Thanks for your order, ${customer_name}!`,
-            `Order Number: ${orderId}`,
-            `Shipping Address: ${shipping_address}`,
-            `Order Total: $${Number(total).toFixed(2)}`,
-            safePaymentHint,
-            '',
-            'Items:',
-            orderSummary
-          ].join('\n')
-        });
+        try {
+          await mailer.sendMail({
+            from: MAIL_FROM,
+            to: customer_email,
+            subject: `BottleOps Order Confirmation #${orderId}`,
+            text: [
+              `Thanks for your order, ${customer_name}!`,
+              `Order Number: ${orderId}`,
+              `Shipping Address: ${shipping_address}`,
+              `Order Total: $${Number(total).toFixed(2)}`,
+              safePaymentHint,
+              '',
+              'Items:',
+              orderSummary
+            ].join('\n')
+          });
+        } catch (mailErr) {
+          // Do not fail checkout if confirmation email is unavailable.
+          console.warn('Order email failed:', mailErr && mailErr.message ? mailErr.message : mailErr);
+        }
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, order_id: orderId, total: total }));
       } catch (err) {
