@@ -4,6 +4,7 @@
   "description": "\"# NCyTE\"",
   "main": "serve.js",
   "scripts": {
+    "start": "node serve.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -19,6 +20,7 @@
   },
   "homepage": "https://github.com/tabbing609/NCyTE#readme",
   "dependencies": {
+    "dotenv": "^17.4.1",
     "nodemailer": "^8.0.4",
     "pg": "^8.20.0"
   }

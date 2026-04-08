@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  var apiUrl = 'https://139.182.185.119.nip.io/';
+  var apiUrl = '/api/chatbot';
   var widget = document.createElement('div');
   widget.className = 'chatbot-widget';
   widget.innerHTML = '' +

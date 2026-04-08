@@ -1,24 +1,33 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const { Pool } = require('pg');
 const nodemailer = require('nodemailer');
 
-const PORT = 5500;
-const HOST = '127.0.0.1';
+const PORT = Number(process.env.PORT || 5500);
+const HOST = process.env.HOST || '127.0.0.1';
 const DIR = __dirname;
+const AI_API_URL = process.env.AI_API_URL || 'https://ai.cyberlab.csusb.edu';
+const AI_API_KEY = process.env.AI_API_KEY || '';
+const FRONTEND_ORIGINS = String(process.env.FRONTEND_ORIGINS || 'https://localhost')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+const MAX_JSON_BODY_BYTES = Number(process.env.MAX_JSON_BODY_BYTES || 1024 * 64);
 
-const ADMIN_PASSWORD = 'Le06PkrDCgF$K&kW';
-const SENSITIVE_FILES = new Set(['serve.js', 'package.json', 'package-lock.json', '.env', '.gitignore', 'web.config']);
+const SENSITIVE_FILES = new Set(['serve.js', 'package.json', 'package-lock.json', '.env', '.env.example', '.gitignore', 'web.config']);
 
 const pool = new Pool({
-  host: '10.0.1.200',
-  port: 5432,
-  database: 'bottleops_store',
-  user: 'storeapp',
-  password: '!zXWhM%9HWNh$z1g'
+  host: process.env.DB_HOST || '127.0.0.1',
+  port: Number(process.env.DB_PORT || 5432),
+  database: process.env.DB_NAME || 'bottleops_store',
+  user: process.env.DB_USER || 'storeapp',
+  password: process.env.DB_PASSWORD || '',
+  ssl: String(process.env.DB_SSL || 'false').toLowerCase() === 'true' ? { rejectUnauthorized: false } : undefined
 });
-const SMTP_HOST = process.env.SMTP_HOST || '192.168.1.105';
+const SMTP_HOST = process.env.SMTP_HOST || '';
 const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
 const SMTP_USER = process.env.SMTP_USER || '';
 const SMTP_PASS = process.env.SMTP_PASS || '';
@@ -48,7 +57,13 @@ const MIME = {
 async function parseBody(req) {
   return new Promise((resolve, reject) => {
     let body = '';
-    req.on('data', chunk => body += chunk);
+    req.on('data', chunk => {
+      body += chunk;
+      if (Buffer.byteLength(body, 'utf8') > MAX_JSON_BODY_BYTES) {
+        reject(new Error('Request body too large'));
+        req.destroy();
+      }
+    });
     req.on('end', () => {
       try {
         resolve(JSON.parse(body));
@@ -60,10 +75,33 @@ async function parseBody(req) {
 }
 
 function checkAuth(req) {
-  const authHeader = req.headers['authorization'];
+  if (!ADMIN_PASSWORD) return false;
+  const authHeader = req.headers.authorization;
   if (!authHeader) return false;
   const token = authHeader.replace('Bearer ', '');
   return token === ADMIN_PASSWORD;
+}
+
+function getAllowedOrigin(req) {
+  const requestOrigin = String(req.headers.origin || '').trim();
+  if (!requestOrigin) return '';
+  return FRONTEND_ORIGINS.includes(requestOrigin) ? requestOrigin : '';
+}
+
+function applyCors(req, res) {
+  const allowedOrigin = getAllowedOrigin(req);
+  if (allowedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+}
+
+function setSecurityHeaders(res) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
 }
 
 function isSensitivePath(urlPath) {
@@ -74,10 +112,32 @@ function isSensitivePath(urlPath) {
   return SENSITIVE_FILES.has(fileName);
 }
 
+const rateState = new Map();
+function isRateLimited(req, routeKey, maxRequests, windowMs) {
+  const now = Date.now();
+  const sourceIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown')
+    .split(',')[0]
+    .trim();
+  const key = `${routeKey}:${sourceIp}`;
+  const current = rateState.get(key);
+  if (!current || now > current.resetAt) {
+    rateState.set(key, { count: 1, resetAt: now + windowMs });
+    return false;
+  }
+  current.count += 1;
+  return current.count > maxRequests;
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, info] of rateState.entries()) {
+    if (now > info.resetAt) rateState.delete(key);
+  }
+}, 60 * 1000).unref();
+
 http.createServer(async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  applyCors(req, res);
+  setSecurityHeaders(res);
 
   if (req.method === 'OPTIONS') {
     res.writeHead(200);
@@ -88,7 +148,7 @@ http.createServer(async (req, res) => {
   if (req.url === '/api/products' && req.method === 'GET') {
     try {
       const result = await pool.query(`
-        SELECT p.product_id, p.name, p.description, p.price, p.stock_quantity, p.sku, 
+        SELECT p.product_id, p.name, p.description, p.price, p.stock_quantity, p.sku,
                c.name as category,
                CASE WHEN p.stock_quantity <= 0 THEN true ELSE false END as out_of_stock
         FROM products p
@@ -121,6 +181,11 @@ http.createServer(async (req, res) => {
 
   if (req.url === '/api/orders' && req.method === 'POST') {
     try {
+      if (isRateLimited(req, 'orders_post', 20, 60 * 1000)) {
+        res.writeHead(429, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Too many requests. Please try again shortly.' }));
+        return;
+      }
       const body = await parseBody(req);
       const { customer_email, customer_name, items, shipping_address, payment_info } = body;
       if (!customer_email || !customer_name || !shipping_address || !Array.isArray(items) || !items.length) {
@@ -195,7 +260,7 @@ http.createServer(async (req, res) => {
     } catch (err) {
       console.error('Order error:', err);
       res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: err.message }));
+      res.end(JSON.stringify({ error: 'Order request failed' }));
     }
     return;
   }
@@ -203,7 +268,7 @@ http.createServer(async (req, res) => {
   if (req.url === '/api/orders' && req.method === 'GET') {
     if (!checkAuth(req)) {
       res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Unauthorized. Admin password required.' }));
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
       return;
     }
     try {
@@ -226,7 +291,51 @@ http.createServer(async (req, res) => {
     } catch (err) {
       console.error('Database error:', err);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Database query failed' }));
+      res.end(JSON.stringify({ error: 'Unable to fetch orders' }));
+    }
+    return;
+  }
+
+  if (req.url === '/api/chatbot' && req.method === 'POST') {
+    try {
+      if (isRateLimited(req, 'chatbot_post', 45, 60 * 1000)) {
+        res.writeHead(429, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Too many chatbot requests. Please slow down.' }));
+        return;
+      }
+      if (!AI_API_KEY) {
+        throw new Error('AI_API_KEY is not configured on server');
+      }
+      const body = await parseBody(req);
+      const message = String(body.message || '').trim();
+      const context = String(body.context || '').trim();
+      if (!message) {
+        throw new Error('Message is required');
+      }
+      const upstreamResponse = await fetch(AI_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${AI_API_KEY}`
+        },
+        body: JSON.stringify({ message, context })
+      });
+      const raw = await upstreamResponse.text();
+      let data = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch (e) {
+        data = { reply: raw };
+      }
+      if (!upstreamResponse.ok) {
+        throw new Error('Upstream AI error');
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(data));
+    } catch (err) {
+      console.error('Chatbot proxy error:', err);
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Chat service unavailable' }));
     }
     return;
   }
@@ -237,7 +346,7 @@ http.createServer(async (req, res) => {
     return;
   }
 
-  let filePath = path.join(DIR, req.url === '/' ? 'index.html' : req.url);
+  const filePath = path.join(DIR, req.url === '/' ? 'index.html' : req.url);
   if (!filePath.startsWith(DIR)) {
     res.writeHead(403, { 'Content-Type': 'text/plain' });
     res.end('Forbidden');
@@ -255,7 +364,7 @@ http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': contentType });
     res.end(data);
   });
-
 }).listen(PORT, HOST, () => {
   console.log(`Server running at http://${HOST}:${PORT}`);
+  console.log(`Allowed frontend origins: ${FRONTEND_ORIGINS.join(', ') || '(none)'}`);
 });
