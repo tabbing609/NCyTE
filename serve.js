@@ -37,13 +37,20 @@ const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
 const SMTP_USER = process.env.SMTP_USER || '';
 const SMTP_PASS = process.env.SMTP_PASS || '';
 const MAIL_FROM = process.env.MAIL_FROM || 'no-reply@bottleops.xyz';
+// Default: verify TLS certs. Set SMTP_TLS_REJECT_UNAUTHORIZED=false only if the server chain
+// is broken/self-signed and you cannot fix trust (prefer NODE_EXTRA_CA_CERTS or node --use-system-ca).
+const SMTP_TLS_REJECT_UNAUTHORIZED =
+  String(process.env.SMTP_TLS_REJECT_UNAUTHORIZED || 'true').toLowerCase() !== 'false';
 const CHATBOT_TIMEOUT_MS = Number(process.env.CHATBOT_TIMEOUT_MS || 12000);
 const mailer = nodemailer.createTransport({
   host: SMTP_HOST,
   port: SMTP_PORT,
-  secure: false,
-  requireTLS: true,
-  auth: SMTP_USER && SMTP_PASS ? { user: SMTP_USER, pass: SMTP_PASS } : undefined
+  secure: SMTP_PORT === 465,
+  requireTLS: SMTP_PORT !== 465,
+  auth: SMTP_USER && SMTP_PASS ? { user: SMTP_USER, pass: SMTP_PASS } : undefined,
+  tls: {
+    rejectUnauthorized: SMTP_TLS_REJECT_UNAUTHORIZED
+  }
 });
 
 const MIME = {
