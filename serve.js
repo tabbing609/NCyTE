@@ -9,8 +9,12 @@ const nodemailer = require('nodemailer');
 const PORT = Number(process.env.PORT || 5500);
 const HOST = process.env.HOST || '127.0.0.1';
 const DIR = __dirname;
-const AI_API_URL = process.env.AI_API_URL || 'https://ai.cyberlab.csusb.edu';
+// OpenWebUI: OpenAI-compatible API (competition docs §5 — base URL + /chat/completions).
+const AI_BASE_URL = String(process.env.AI_BASE_URL || 'https://ai.cyberlab.csusb.edu/api').replace(/\/$/, '');
+const AI_API_URL =
+  process.env.AI_API_URL || `${AI_BASE_URL}/chat/completions`;
 const AI_API_KEY = process.env.AI_API_KEY || '';
+const AI_MODEL = String(process.env.AI_MODEL || '').trim();
 const FRONTEND_ORIGINS = String(process.env.FRONTEND_ORIGINS || 'https://localhost')
   .split(',')
   .map(s => s.trim())
@@ -273,25 +277,27 @@ http.createServer(async (req, res) => {
         const safePaymentHint = payment_info && typeof payment_info === 'object'
           ? `Payment: card ending in ${payment_info.card_number_last4 || '****'} (exp ${payment_info.card_expiry || 'N/A'})`
           : 'Payment: captured';
-        try {
-          await mailer.sendMail({
-            from: MAIL_FROM,
-            to: customer_email,
-            subject: `BottleOps Order Confirmation #${orderId}`,
-            text: [
-              `Thanks for your order, ${customer_name}!`,
-              `Order Number: ${orderId}`,
-              `Shipping Address: ${shipping_address}`,
-              `Order Total: $${Number(total).toFixed(2)}`,
-              safePaymentHint,
-              '',
-              'Items:',
-              orderSummary
-            ].join('\n')
-          });
-        } catch (mailErr) {
-          // Do not fail checkout if confirmation email is unavailable.
-          console.warn('Order email failed:', mailErr && mailErr.message ? mailErr.message : mailErr);
+        if (SMTP_HOST) {
+          try {
+            await mailer.sendMail({
+              from: MAIL_FROM,
+              to: customer_email,
+              subject: `BottleOps Order Confirmation #${orderId}`,
+              text: [
+                `Thanks for your order, ${customer_name}!`,
+                `Order Number: ${orderId}`,
+                `Shipping Address: ${shipping_address}`,
+                `Order Total: $${Number(total).toFixed(2)}`,
+                safePaymentHint,
+                '',
+                'Items:',
+                orderSummary
+              ].join('\n')
+            });
+          } catch (mailErr) {
+            // Do not fail checkout if confirmation email is unavailable.
+            console.warn('Order email failed:', mailErr && mailErr.message ? mailErr.message : mailErr);
+          }
         }
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, order_id: orderId, total: total }));
@@ -355,12 +361,20 @@ http.createServer(async (req, res) => {
       if (!AI_API_KEY) {
         throw new Error('AI_API_KEY is not configured on server');
       }
+      if (!AI_MODEL) {
+        throw new Error('AI_MODEL is not configured on server (set the model name from your competition allowlist)');
+      }
       const body = await parseBody(req);
       const message = String(body.message || '').trim();
       const context = String(body.context || '').trim();
       if (!isValidText(message, 1, 2000) || (context && !isValidText(context, 1, 3000))) {
         throw new Error('Message is required');
       }
+      const messages = [];
+      if (context) {
+        messages.push({ role: 'system', content: context });
+      }
+      messages.push({ role: 'user', content: message });
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), CHATBOT_TIMEOUT_MS);
       const upstreamResponse = await fetch(AI_API_URL, {
@@ -369,7 +383,10 @@ http.createServer(async (req, res) => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${AI_API_KEY}`
         },
-        body: JSON.stringify({ message, context }),
+        body: JSON.stringify({
+          model: AI_MODEL,
+          messages
+        }),
         signal: controller.signal
       });
       clearTimeout(timeout);
@@ -378,13 +395,27 @@ http.createServer(async (req, res) => {
       try {
         data = raw ? JSON.parse(raw) : {};
       } catch (e) {
-        data = { reply: raw };
+        data = {};
       }
       if (!upstreamResponse.ok) {
-        throw new Error('Upstream AI error');
+        const snippet =
+          raw.length > 400 ? `${raw.slice(0, 400)}…` : raw;
+        console.error(
+          `Chatbot upstream failed: HTTP ${upstreamResponse.status} ${upstreamResponse.statusText}`,
+          snippet ? `Response: ${snippet}` : '(empty body)'
+        );
+        throw new Error(`Upstream AI error (${upstreamResponse.status})`);
       }
+      const reply =
+        (data.choices &&
+          data.choices[0] &&
+          data.choices[0].message &&
+          String(data.choices[0].message.content || '').trim()) ||
+        (typeof data.reply === 'string' ? data.reply : '') ||
+        (typeof data.response === 'string' ? data.response : '') ||
+        '';
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(data));
+      res.end(JSON.stringify(reply ? { reply } : data));
     } catch (err) {
       console.error('Chatbot proxy error:', err);
       res.writeHead(502, { 'Content-Type': 'application/json' });
