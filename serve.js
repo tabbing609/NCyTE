@@ -37,6 +37,7 @@ const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
 const SMTP_USER = process.env.SMTP_USER || '';
 const SMTP_PASS = process.env.SMTP_PASS || '';
 const MAIL_FROM = process.env.MAIL_FROM || 'no-reply@bottleops.xyz';
+const SUPPORT_EMAIL = String(process.env.SUPPORT_EMAIL || 'support@bottleops.xyz').trim();
 // Default: verify TLS certs. Set SMTP_TLS_REJECT_UNAUTHORIZED=false only if the server chain
 // is broken/self-signed and you cannot fix trust (prefer NODE_EXTRA_CA_CERTS or node --use-system-ca).
 const SMTP_TLS_REJECT_UNAUTHORIZED =
@@ -220,6 +221,45 @@ http.createServer(async (req, res) => {
       console.error('Database error:', err);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Database connection failed' }));
+    }
+    return;
+  }
+
+  if (req.url === '/api/contact' && req.method === 'POST') {
+    try {
+      if (isRateLimited(req, 'contact_post', 8, 10 * 60 * 1000)) {
+        res.writeHead(429, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Too many messages. Please try again in a few minutes.' }));
+        return;
+      }
+      if (!SMTP_HOST) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Contact form is not configured (missing SMTP).' }));
+        return;
+      }
+      const body = await parseBody(req);
+      const name = String(body.name || '').trim();
+      const email = String(body.email || '').trim();
+      const message = String(body.message || '').trim();
+      if (!isValidEmail(email) || !isValidText(name, 2, 120) || !isValidText(message, 5, 8000)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Please enter a valid name, email, and message (at least a few words).' }));
+        return;
+      }
+      const subjectName = name.replace(/[\r\n]/g, ' ').slice(0, 80);
+      await mailer.sendMail({
+        from: MAIL_FROM,
+        to: SUPPORT_EMAIL,
+        replyTo: email,
+        subject: `[BottleOps] Message from ${subjectName}`,
+        text: [`From: ${name} <${email}>`, '', message].join('\n')
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      console.error('Contact form email error:', err);
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Could not send your message. Please try again later or email us directly.' }));
     }
     return;
   }
