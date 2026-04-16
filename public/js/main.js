@@ -23,7 +23,20 @@
         body: JSON.stringify({ name: name.trim(), email: email.trim(), message: message.trim() })
       })
         .then(function (r) {
-          return r.json().then(function (data) {
+          return r.text().then(function (text) {
+            var trimmed = (text || '').trim();
+            if (trimmed.charAt(0) === '<') {
+              throw new Error(
+                'Contact form API is not available on this host (the server returned a web page instead of JSON). ' +
+                'Run Node with serve.js behind IIS and reverse-proxy /api to it, or email support@bottleops.xyz directly.'
+              );
+            }
+            var data = {};
+            try {
+              data = trimmed ? JSON.parse(trimmed) : {};
+            } catch (ignore) {
+              throw new Error('Unexpected server response. Try emailing support@bottleops.xyz directly.');
+            }
             if (!r.ok) throw new Error((data && data.error) || 'Something went wrong.');
             return data;
           });

@@ -2,13 +2,15 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+require('dotenv').config({
+  path: process.env.DOTENV_CONFIG_PATH || path.join(__dirname, '.env')
+});
 const { Pool } = require('pg');
 const nodemailer = require('nodemailer');
 
 const PORT = Number(process.env.PORT || 5500);
 const HOST = process.env.HOST || '127.0.0.1';
-const DIR = __dirname;
+const STATIC_DIR = path.resolve(__dirname, 'public');
 // OpenWebUI: OpenAI-compatible API (competition docs §5 — base URL + /chat/completions).
 const AI_BASE_URL = String(process.env.AI_BASE_URL || 'https://ai.cyberlab.csusb.edu/api').replace(/\/$/, '');
 const AI_API_URL =
@@ -150,8 +152,18 @@ function isValidOrderItems(items) {
   });
 }
 
-function isSensitivePath(urlPath) {
-  const cleanPath = decodeURIComponent((urlPath || '').split('?')[0]).replace(/^\/+/, '');
+function getDecodedPathname(url) {
+  const raw = String(url || '').split('?')[0].split('#')[0];
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return null;
+  }
+}
+
+/** @param {string} decodedPathname pathname only, already decoded once */
+function isSensitivePath(decodedPathname) {
+  const cleanPath = String(decodedPathname || '').replace(/^\/+/, '');
   if (!cleanPath) return false;
   const normalized = path.normalize(cleanPath).replace(/^(\.\.(\/|\\|$))+/, '');
   const fileName = path.basename(normalized).toLowerCase();
@@ -471,28 +483,49 @@ http.createServer(async (req, res) => {
     return;
   }
 
-  if (isSensitivePath(req.url)) {
+  const pathname = getDecodedPathname(req.url);
+  if (pathname === null) {
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    res.end('Bad Request');
+    return;
+  }
+
+  if (isSensitivePath(pathname)) {
     res.writeHead(403, { 'Content-Type': 'text/plain' });
     res.end('Forbidden');
     return;
   }
 
-  if (path.basename(String(req.url || '')).startsWith('.')) {
+  let relative = pathname.replace(/^\/+/, '');
+  if (!relative || pathname === '/') {
+    relative = 'index.html';
+  }
+
+  if (relative.includes('\0')) {
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    res.end('Bad Request');
+    return;
+  }
+
+  if (path.basename(relative).startsWith('.')) {
     res.writeHead(403, { 'Content-Type': 'text/plain' });
     res.end('Forbidden');
     return;
   }
 
-  const filePath = path.join(DIR, req.url === '/' ? 'index.html' : req.url);
-  if (!filePath.startsWith(DIR)) {
+  const resolved = path.resolve(STATIC_DIR, relative);
+  const rootResolved = path.resolve(STATIC_DIR);
+  const relToRoot = path.relative(rootResolved, resolved);
+  if (relToRoot.startsWith('..') || path.isAbsolute(relToRoot)) {
     res.writeHead(403, { 'Content-Type': 'text/plain' });
     res.end('Forbidden');
     return;
   }
-  const ext = path.extname(filePath).toLowerCase();
+
+  const ext = path.extname(resolved).toLowerCase();
   const contentType = MIME[ext] || 'application/octet-stream';
 
-  fs.readFile(filePath, (err, data) => {
+  fs.readFile(resolved, (err, data) => {
     if (err) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Not Found');
