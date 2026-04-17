@@ -17,6 +17,7 @@ const AI_API_URL =
   process.env.AI_API_URL || `${AI_BASE_URL}/chat/completions`;
 const AI_API_KEY = process.env.AI_API_KEY || '';
 const AI_MODEL = String(process.env.AI_MODEL || '').trim();
+const AI_SYSTEM_PROMPT = String(process.env.AI_SYSTEM_PROMPT || '').trim();
 const FRONTEND_ORIGINS = String(process.env.FRONTEND_ORIGINS || 'https://localhost')
   .split(',')
   .map(s => s.trim())
@@ -430,8 +431,8 @@ http.createServer(async (req, res) => {
         throw new Error('Message is required');
       }
       const messages = [];
-      if (context) {
-        messages.push({ role: 'system', content: context });
+      if (AI_SYSTEM_PROMPT) {
+        messages.push({ role: 'system', content: AI_SYSTEM_PROMPT });
       }
       messages.push({ role: 'user', content: message });
       const controller = new AbortController();
